@@ -31,7 +31,8 @@ class OptunaSolverFactory(solver.SolverFactory):
             name=self._name,
             attrs={
                 "version": "optuna={}, kurobako-py={}".format(
-                    get_distribution("optuna").version, get_distribution("kurobako").version
+                    get_distribution("optuna").version,
+                    get_distribution("kurobako").version,
                 ),
                 "github": "https://github.com/optuna/optuna",
                 "paper": 'Akiba, Takuya, et al. "Optuna: A next-generation hyperparameter '
@@ -121,7 +122,9 @@ class OptunaSolver(solver.Solver):
                 params.append(None)
 
         self._runnings[kurobako_trial_id] = trial
-        return solver.NextTrial(trial_id=kurobako_trial_id, params=params, next_step=next_step)
+        return solver.NextTrial(
+            trial_id=kurobako_trial_id, params=params, next_step=next_step
+        )
 
     def _suggest(self, trial: optuna.Trial, v: problem.Var) -> float:
         if v.name in trial.params:
@@ -138,9 +141,13 @@ class OptunaSolver(solver.Solver):
                 return trial.suggest_loguniform(v.name, v.range.low, v.range.high)
         elif isinstance(v.range, problem.DiscreteRange):
             if self._use_discrete_uniform:
-                return trial.suggest_discrete_uniform(v.name, v.range.low, v.range.high - 1, q=1)
+                return trial.suggest_discrete_uniform(
+                    v.name, v.range.low, v.range.high - 1, q=1
+                )
             elif v.distribution == problem.Distribution.LOG_UNIFORM:
-                return trial.suggest_int(v.name, v.range.low, v.range.high - 1, log=True)
+                return trial.suggest_int(
+                    v.name, v.range.low, v.range.high - 1, log=True
+                )
             else:
                 return trial.suggest_int(v.name, v.range.low, v.range.high - 1)
         elif isinstance(v.range, problem.CategoricalRange):
@@ -163,7 +170,9 @@ class OptunaSolver(solver.Solver):
             self._study.sampler.after_trial(
                 self._study, trial, optuna.trial.TrialState.PRUNED, values
             )
-            self._study._storage.set_trial_state(trial._trial_id, optuna.trial.TrialState.PRUNED)
+            self._study._storage.set_trial_state(
+                trial._trial_id, optuna.trial.TrialState.PRUNED
+            )
             return
 
         assert len(values) == len(self._study.directions)
@@ -177,7 +186,9 @@ class OptunaSolver(solver.Solver):
                 self._study, trial, optuna.trial.TrialState.COMPLETE, values
             )
             self._study._storage.set_trial_values(trial._trial_id, values)
-            self._study._storage.set_trial_state(trial._trial_id, optuna.trial.TrialState.COMPLETE)
+            self._study._storage.set_trial_state(
+                trial._trial_id, optuna.trial.TrialState.COMPLETE
+            )
             self._study._log_completed_trial(trial, values)
         else:
             if len(values) > 1:

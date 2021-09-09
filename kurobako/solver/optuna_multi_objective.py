@@ -16,7 +16,9 @@ _optuna_logger = optuna.logging.get_logger(__name__)
 class OptunaSolverFactory(solver.SolverFactory):
     def __init__(
         self,
-        create_study: Callable[[int, int], optuna.multi_objective.study.MultiObjectiveStudy],
+        create_study: Callable[
+            [int, int], optuna.multi_objective.study.MultiObjectiveStudy
+        ],
         use_discrete_uniform: bool = False,
     ):
         self._create_study = create_study
@@ -27,7 +29,8 @@ class OptunaSolverFactory(solver.SolverFactory):
             name="Optuna",
             attrs={
                 "version": "optuna={}, kurobako-py={}".format(
-                    get_distribution("optuna").version, get_distribution("kurobako").version
+                    get_distribution("optuna").version,
+                    get_distribution("kurobako").version,
                 ),
                 "github": "https://github.com/optuna/optuna",
                 "paper": 'Akiba, Takuya, et al. "Optuna: A next-generation hyperparameter '
@@ -48,7 +51,9 @@ class OptunaSolverFactory(solver.SolverFactory):
     def create_solver(self, seed: int, problem: problem.ProblemSpec) -> solver.Solver:
         n_objectives = len(problem.values)
         study = self._create_study(n_objectives, seed)
-        return OptunaSolver(study, problem, use_discrete_uniform=self._use_discrete_uniform)
+        return OptunaSolver(
+            study, problem, use_discrete_uniform=self._use_discrete_uniform
+        )
 
 
 class OptunaSolver(solver.Solver):
@@ -70,7 +75,9 @@ class OptunaSolver(solver.Solver):
         self._pruned = (
             queue.Queue()
         )  # type: queue.Queue[Tuple[int, optuna.multi_objective.trial.MultiObjectiveTrial]]
-        self._runnings = {}  # type: Dict[int, optuna.multi_objective.trial.MultiObjectiveTrial]
+        self._runnings = (
+            {}
+        )  # type: Dict[int, optuna.multi_objective.trial.MultiObjectiveTrial]
 
     def _next_step(self, current_step: int) -> int:
         # TODO(ohta): Support pruning.
@@ -100,7 +107,9 @@ class OptunaSolver(solver.Solver):
                 params.append(None)
 
         self._runnings[kurobako_trial_id] = trial
-        return solver.NextTrial(trial_id=kurobako_trial_id, params=params, next_step=next_step)
+        return solver.NextTrial(
+            trial_id=kurobako_trial_id, params=params, next_step=next_step
+        )
 
     def _suggest(self, trial: optuna.Trial, v: problem.Var) -> float:
         if v.name in trial.params:
@@ -117,7 +126,9 @@ class OptunaSolver(solver.Solver):
                 return trial.suggest_loguniform(v.name, v.range.low, v.range.high)
         elif isinstance(v.range, problem.DiscreteRange):
             if self._use_discrete_uniform:
-                return trial.suggest_discrete_uniform(v.name, v.range.low, v.range.high - 1, q=1)
+                return trial.suggest_discrete_uniform(
+                    v.name, v.range.low, v.range.high - 1, q=1
+                )
             else:
                 return trial.suggest_int(v.name, v.range.low, v.range.high - 1)
         elif isinstance(v.range, problem.CategoricalRange):
@@ -137,18 +148,32 @@ class OptunaSolver(solver.Solver):
         if len(values) == 0:
             message = "Unevaluable trial#{}: step={}".format(trial.number, current_step)
             _optuna_logger.info(message)
+
+            self._study.sampler.after_trial(
+                self._study, trial, optuna.trial.TrialState.PRUNED, values
+            )
             self._study._storage.set_trial_state(
-                trial._trial._trial_id, optuna.trial.TrialState.PRUNED
+                trial._trial_id, optuna.trial.TrialState.PRUNED
             )
             return
 
         assert current_step <= self._problem.last_step
         if self._problem.last_step == current_step:
+            """
             trial._report_complete_values(values)
             self._study._storage.set_trial_state(
                 trial._trial._trial_id, optuna.trial.TrialState.COMPLETE
             )
             self._study._study._log_completed_trial(trial._trial, 0.0)
+            """
+            self._study.sampler.after_trial(
+                self._study, trial, optuna.trial.TrialState.COMPLETE, values
+            )
+            self._study._storage.set_trial_values(trial._trial_id, values)
+            self._study._storage.set_trial_state(
+                trial._trial_id, optuna.trial.TrialState.COMPLETE
+            )
+            self._study._log_completed_trial(trial, values)
         else:
             raise NotImplementedError
             # TODO(ohta): Support pruning
@@ -168,6 +193,6 @@ class OptunaSolver(solver.Solver):
             #     self._waitings.put((kurobako_trial_id, trial))
 
     def _create_new_trial(self):
-        trial_id = self._study._storage.create_new_trial(self._study._study._study_id)
-        trial = optuna.trial.Trial(self._study._study, trial_id)
-        return optuna.multi_objective.trial.MultiObjectiveTrial(trial)
+        trial_id = self._study._storage.create_new_trial(self._study._study_id)
+        trial = optuna.trial.Trial(self._study, trial_id)
+        return trial
